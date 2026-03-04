@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "comfyui-api.name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "comfyui-api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "comfyui-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "comfyui-api.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "comfyui-api.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: RUNPOD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: comfyui-api-secret
+                  key: RUNPOD_API_KEY
+            - name: RUNPOD_ENDPOINT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: comfyui-api-secret
+                  key: RUNPOD_ENDPOINT_ID
+            - name: COMFYUI_TIMEOUT
+              valueFrom:
+                secretKeyRef:
+                  name: comfyui-api-secret
+                  key: COMFYUI_TIMEOUT
+            - name: OTEL_ENABLED
+              value: {{ .Values.otel.enabled | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.otel.serviceName | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.jaegerEndpoint | quote }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: {{ .Values.service.targetPort }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

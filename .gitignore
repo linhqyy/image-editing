@@ -1,0 +1,22 @@
+# Secrets & credentials
+.env
+ansible/sa-key.json
+k8s/image-editing/secret.yaml
+
+# Terraform state
+terraform/*.tfvars
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+api/venv/
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+# webhook test

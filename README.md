@@ -255,6 +255,7 @@ kubectl get ingress -n image-editing   # get public IP
 # Add Helm repos
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 
 # Prometheus + Grafana
@@ -262,15 +263,33 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
   --namespace monitoring --create-namespace \
   --set grafana.service.type=LoadBalancer
 
-# Jaeger
+# Jaeger (distributed tracing)
 helm install jaeger jaegertracing/jaeger \
   --namespace monitoring
+
+# Loki + Promtail (log aggregation)
+helm install loki-stack grafana/loki-stack \
+  --namespace monitoring \
+  --set promtail.enabled=true \
+  --set loki.enabled=true \
+  --set grafana.enabled=false
 
 # Get Grafana external IP and password
 kubectl get svc prometheus-grafana -n monitoring
 kubectl --namespace monitoring get secret prometheus-grafana \
   -o jsonpath="{.data.admin-password}" | base64 -d && echo
 ```
+
+**Connect Loki to Grafana:**
+1. Grafana → **Configuration → Data Sources → Add data source → Loki**
+2. URL: `http://loki-stack.monitoring.svc.cluster.local:3100`
+3. Save & Test
+
+**Search logs in Grafana Explore:**
+- `{namespace="image-editing"}` — all API pod logs
+- `{namespace="image-editing"} |= "error"` — filter errors only
+- `{namespace="image-editing"} | json | status >= 500` — HTTP 5xx only
+
 
 ### 5.4 Provision Jenkins VM with Ansible
 

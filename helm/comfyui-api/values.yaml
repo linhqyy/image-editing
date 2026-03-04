@@ -50,4 +50,4 @@ runpod:
 otel:
   enabled: true
   serviceName: "comfyui-api"
-  jaegerEndpoint: "http://jaeger-collector.monitoring.svc.cluster.local:4317"
+  jaegerEndpoint: "jaeger.monitoring.svc.cluster.local:4317"

@@ -6,6 +6,7 @@ k8s/image-editing/secret.yaml
 # Terraform state
 terraform/*.tfvars
 terraform/.terraform/
+terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 
@@ -19,4 +20,3 @@ api/venv/
 # IDE
 .idea/
 .vscode/
-# webhook test

@@ -1,0 +1,53 @@
+replicaCount: 3
+
+image:
+  repository: linhqyy/comfyui-api
+  tag: latest
+  pullPolicy: Always
+
+namespace: image-editing
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+  path: /
+  pathType: Prefix
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "512Mi"
+
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 15
+  readiness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+runpod:
+  apiKey: ""
+  endpointId: ""
+  timeout: "300"
+
+otel:
+  enabled: true
+  serviceName: "comfyui-api"
+  jaegerEndpoint: "jaeger.monitoring.svc.cluster.local:4317"

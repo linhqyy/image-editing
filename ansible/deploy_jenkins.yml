@@ -1,0 +1,74 @@
+---
+- name: Deploy Jenkins
+  hosts: jenkins
+  become: yes
+
+  vars:
+    default_container_name: jenkins
+    default_container_image: linhqyy/jenkins:lts
+
+  tasks:
+
+    - name: Remove any stale Jenkins apt files (cleanup from previous runs)
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/jenkins.list
+        - /usr/share/keyrings/jenkins-keyring.gpg
+        - /usr/share/keyrings/jenkins-keyring.asc
+        - /etc/apt/sources.list.d/download_docker_com_linux_debian.list
+
+    - name: Install aptitude
+      apt:
+        name: aptitude
+        state: latest
+        update_cache: true
+
+    - name: Install prerequisites
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-pip
+          - virtualenv
+          - python3-setuptools
+        state: latest
+        update_cache: true
+
+    - name: Install Docker via get-docker script
+      shell: curl -fsSL https://get.docker.com | sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Install Python Docker SDK (required by community.docker)
+      apt:
+        name: python3-docker
+        state: present
+        update_cache: false
+
+    - name: Pull the Jenkins Docker image
+      community.docker.docker_image:
+        name: "{{ default_container_image }}"
+        source: pull
+
+    - name: Create the Jenkins container
+      community.docker.docker_container:
+        name: "{{ default_container_name }}"
+        image: "{{ default_container_image }}"
+        state: started
+        privileged: true
+        user: root
+        volumes:
+          - jenkins_home:/var/jenkins_home
+          - /var/run/docker.sock:/var/run/docker.sock
+        ports:
+          - "8080:8080"
+          - "50000:50000"
+        detach: yes
+
+    - name: Print Jenkins access info
+      debug:
+        msg: "Jenkins running at http://{{ ansible_host }}:8080 — get initial password: docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword"

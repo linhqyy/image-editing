@@ -1,0 +1,6 @@
+apiVersion: v2
+name: comfyui-api
+description: FastAPI client for ComfyUI image editing via RunPod serverless
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,73 @@
+---
+- name: Provision Jenkins VM on GCP
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    project: "image-editing-488312"
+    zone: "us-central1-a"
+    instance_name: "jenkins-vm"
+    machine_type: "e2-medium"
+    disk_size_gb: 30
+    sa_file: "{{ lookup('env', 'GCP_SERVICE_ACCOUNT_FILE') | default(playbook_dir + '/sa-key.json', true) }}"
+
+  tasks:
+
+    - name: Create firewall rule for Jenkins (port 8080)
+      google.cloud.gcp_compute_firewall:
+        name: allow-jenkins
+        network:
+          selfLink: "global/networks/default"
+        allowed:
+          - ip_protocol: tcp
+            ports: ["8080"]
+        target_tags: ["jenkins"]
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ sa_file }}"
+        state: present
+
+    - name: Create Jenkins VM instance
+      google.cloud.gcp_compute_instance:
+        name: "{{ instance_name }}"
+        machine_type: "{{ machine_type }}"
+        zone: "{{ zone }}"
+        project: "{{ project }}"
+        auth_kind: serviceaccount
+        service_account_file: "{{ sa_file }}"
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              disk_size_gb: "{{ disk_size_gb }}"
+              source_image: "projects/debian-cloud/global/images/family/debian-12"
+        network_interfaces:
+          - network:
+              selfLink: "global/networks/default"
+            access_configs:
+              - name: External NAT
+                type: ONE_TO_ONE_NAT
+        tags:
+          items:
+            - jenkins
+        state: present
+      register: jenkins_vm
+
+    - name: Wait for SSH to be ready
+      wait_for:
+        host: "{{ jenkins_vm.networkInterfaces[0].accessConfigs[0].natIP }}"
+        port: 22
+        delay: 10
+        timeout: 120
+
+    - name: Write VM IP to inventory
+      copy:
+        dest: "{{ playbook_dir }}/inventory.ini"
+        content: |
+          [jenkins]
+          jenkins-vm ansible_host={{ jenkins_vm.networkInterfaces[0].accessConfigs[0].natIP }} ansible_user=LINH ansible_ssh_private_key_file=~/.ssh/google_compute_engine
+
+    - name: Show VM external IP
+      debug:
+        msg: "VM ready at {{ jenkins_vm.networkInterfaces[0].accessConfigs[0].natIP }} — run deploy_jenkins.yml next"

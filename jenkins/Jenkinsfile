@@ -1,0 +1,90 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME    = "linhqyy/comfyui-api"
+        IMAGE_TAG     = "v${BUILD_NUMBER}"
+        GKE_CLUSTER   = "comfyui-cluster"
+        GKE_ZONE      = "us-central1-a"
+        GKE_PROJECT   = "image-editing-488312"
+        HELM_RELEASE  = "comfyui-api"
+        HELM_CHART    = "./helm/comfyui-api"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh """
+                    pip install -q -r api/requirements.txt --break-system-packages
+                    cd api && python3 -m pytest tests/ -v --tb=short
+                """
+            }
+        }
+
+        stage('Build Image') {
+            steps {
+                sh """
+                    docker build --platform linux/amd64 \
+                        -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                        -f api/Dockerfile .
+                """
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to GKE') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'runpod-api-key', variable: 'RUNPOD_API_KEY'),
+                    string(credentialsId: 'runpod-endpoint-id', variable: 'RUNPOD_ENDPOINT_ID')
+                ]) {
+                    sh """
+                        gcloud container clusters get-credentials ${GKE_CLUSTER} \
+                            --zone ${GKE_ZONE} \
+                            --project ${GKE_PROJECT}
+
+                        helm upgrade ${HELM_RELEASE} ${HELM_CHART} \
+                            --set image.tag=${IMAGE_TAG} \
+                            --set runpod.apiKey=${RUNPOD_API_KEY} \
+                            --set runpod.endpointId=${RUNPOD_ENDPOINT_ID}
+
+                        kubectl rollout status deployment/comfyui-api -n image-editing
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployed ${IMAGE_NAME}:${IMAGE_TAG} successfully"
+        }
+        failure {
+            echo "❌ Deployment failed — rolling back"
+            sh "helm rollback ${HELM_RELEASE} || true"
+        }
+        always {
+            sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+        }
+    }
+}

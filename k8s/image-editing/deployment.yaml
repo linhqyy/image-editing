@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comfyui-api
+  namespace: image-editing
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: comfyui-api
+  template:
+    metadata:
+      labels:
+        app: comfyui-api
+    spec:
+      containers:
+        - name: comfyui-api
+          image: linhqyy/comfyui-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: RUNPOD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: comfyui-api-secret
+                  key: RUNPOD_API_KEY
+            - name: RUNPOD_ENDPOINT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: comfyui-api-secret
+                  key: RUNPOD_ENDPOINT_ID
+            - name: COMFYUI_TIMEOUT
+              valueFrom:
+                secretKeyRef:
+                  name: comfyui-api-secret
+                  key: COMFYUI_TIMEOUT
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
